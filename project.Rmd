@@ -103,7 +103,7 @@ if (!file.exists("gbm_Model.save")) {
   print(gbm_mod_fit, digits=3)
 ```
 
-#### The out-sample error rate is 0.957
+#### The out-sample error rate is 0.036.
 
 
 
@@ -137,11 +137,13 @@ print(rfModel, digits=3)
 
 
 
-##### out-sample error rate 99.8%.
+##### out-sample error rate 0.02%.
 
 ```{r}
 predictionRF <- predict(rfModel, newdata=validation)
-confusionMatrix(predictionRF, validation$classe)
+confusionMatrix(predictionRF, validation$classe)$overall[1]
+error_rate <- sum(predictionRF != validation$classe)/nrow(validation)
+error_rate
 ```
 
 ## randomForest for PCA
