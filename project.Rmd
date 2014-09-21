@@ -1,0 +1,185 @@
+---
+output: html_document
+author: Yangjing Long    
+date: 20.09.2014
+title: Course Project writeup
+
+---
+
+The goal of this project is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The data is already devided into the training set and testing set. Our task is to using the training set, build proper model to predict how well people do the excercise in the testing set.
+
+
+##  Step 1. download the data, read the data into R, and look at it.
+
+```{r, echo=FALSE}
+
+setwd("/home/user/data_analysis/Practical-machine-learning/")
+library(caret)
+
+Url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+Url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+#download.file(Url1, destfile = "./pml_training.csv", method ="curl", quiet = FALSE, mode = "w")
+#download.file(Url2, destfile = "./pml_testing.csv", method ="curl", quiet = FALSE, mode = "w")
+
+training <- read.csv("pml_training.csv")
+#dim(training)
+
+#summary(training)
+
+testing <- read.csv("pml_testing.csv")
+#dim(testing)
+
+```
+
+
+## Step 2: cleaning up the data
+
+What we did here is excluding columns that are not required in prediction, eliminated those columns whose near zero variance is TRUE and also eliminated columns with NA's.
+
+After observing data, we found out that the first 7 colomns are not related with prediction. Since there are so many data can be use, and for some columns, more than 80% values are missing, so we delete these values, and keep the rest, which is 53 colomns. These data cleaning process helps a lot for the later prediction. Since the data is relatively big, cleaning it up makes the running time a lot shorter.
+
+```{r}
+training<- training[,-c(1:7)]
+
+training <- training[ , colSums(is.na(training)) == 0]
+
+training$classe <- as.factor(training$classe)
+
+zero <- nearZeroVar(training)
+training <- training[ , -zero]
+```
+
+
+## Create a set for Cross-Validation
+
+We choose 70% of the training data to be the new training data(trainingset), and the rest of 30% is for validation.
+
+
+```{r}
+library(caret)
+set.seed(3433)
+inTrain = createDataPartition(training$classe, p = .70, list = FALSE)
+trainingset = training[ inTrain,]
+trainingtest <- trainingset # used for testing the model later on
+validation = training[-inTrain,]
+```
+
+
+## Preprocessing: Principal Component Analysis
+
+Now we can run a Principla Component Analysis to find the combination of variables that best predict the classe, and use the predict function to return a slimed down version of both the training dataset and the crossvalidation one for use in predictions. This allows us to use more complex models that aren't possible with the full set due to processor and memory limitations.
+
+```{r}
+end <- ncol(trainingset)
+# delete the classe colomn
+preProc <- preProcess(trainingset[, -end], method = "pca") 
+train <- predict(preProc, trainingset[, -end])
+val <- predict(preProc, validation[, -end])
+ncol(trainingset);ncol(train);
+```
+
+PCA needed 25 components to capture 95 percent of the variance. It reduces the dimension from 53 to 25.
+
+## Step 3. Selecting Models
+
+### Model 1 Boosting(GBM)
+
+
+```{r}
+  ptm <- proc.time()
+  set.seed(1153)
+if (!file.exists("gbm_Model.save")) {
+  gbm_mod_fit <- train(classe ~ .,  data = trainingset, method="gbm", verbose=FALSE)
+ save(gbm_mod_fit, file="gbm_Model.save")
+} else {
+  load("gbm_Model.save")
+  }  
+  gbm_predictions <- predict(gbm_mod_fit, newdata=validation)
+  
+  gbm_accuracy <- confusionMatrix(gbm_predictions, validation$classe)$overall[1]
+  gbm_error_rate <- sum(gbm_predictions != validation$classe)/nrow(validation)
+  gbm_test_pred <- predict(gbm_mod_fit, newdata=testing)
+  ptm <- proc.time () - ptm
+  print(gbm_mod_fit, digits=3)
+```
+
+#### out-sample error rate 0.957
+
+
+
+### Model 2 Random Forest
+
+
+Random Forests are regarded as the most accurate and slowest, so even if we only use the principle components this may take some time.
+
+```{r}
+library(randomForest)
+set.seed(32323)
+if (!file.exists("rfModel.save")) {
+rfModel <- train(classe~., data=trainingset, 
+                method = "rf",
+                trControl = trainControl(method = "cv",
+                                         number = 5,
+                                         repeats = 5))
+
+
+
+ save(rfModel, file="rfModel.save")
+} else {
+  load("rfModel.save")
+  }
+```
+
+
+```{r}
+print(rfModel, digits=3)
+```
+
+
+
+##### out-sample error rate 
+
+## randomForest for PCA
+
+```{r}
+set.seed(32323)
+if (!file.exists("rfModelPCA.save")) {
+rfModelPCA <- train(trainingset$classe~., data=train, 
+                method = "rf",
+                trControl = trainControl(method = "cv",
+                                         number = 5,
+                                         repeats = 5))
+save(rfModelPCA, file="rfModelPCA.save")
+} else {
+  load("rfModelPCA.save")
+  }
+```
+
+
+```{r}
+print(rfModelPCA, digits=3)
+```
+
+
+
+# Prediction
+
+```{r}
+answers<- predict(rfModel, newdata=testing)
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(as.character(answers))
+
+```
+
+
+#Conclusion
+
+Both the RF model and Booting models seems have satisfied accurary. However, in this test, RF has higher accurary, and it is faster. So we conclude that RF is the better model in this case.
