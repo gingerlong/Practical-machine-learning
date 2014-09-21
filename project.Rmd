@@ -103,7 +103,7 @@ if (!file.exists("gbm_Model.save")) {
   print(gbm_mod_fit, digits=3)
 ```
 
-#### out-sample error rate 0.957
+#### The out-sample error rate is 0.957
 
 
 
@@ -137,7 +137,12 @@ print(rfModel, digits=3)
 
 
 
-##### out-sample error rate 
+##### out-sample error rate 99.8%.
+
+```{r}
+predictionRF <- predict(rfModel, newdata=validation)
+confusionMatrix(predictionRF, validation$classe)
+```
 
 ## randomForest for PCA
 
@@ -161,9 +166,8 @@ print(rfModelPCA, digits=3)
 ```
 
 
-
 # Prediction
-
+It turn out that I submitted the 20 prediction files, all of them are correct. 
 ```{r}
 answers<- predict(rfModel, newdata=testing)
 
@@ -183,3 +187,6 @@ pml_write_files(as.character(answers))
 #Conclusion
 
 Both the RF model and Booting models seems have satisfied accurary. However, in this test, RF has higher accurary, and it is faster. So we conclude that RF is the better model in this case.
+
+
+
